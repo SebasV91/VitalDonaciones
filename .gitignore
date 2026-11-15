@@ -1,0 +1,6 @@
+# Archivos comprimidos y temporales
+*.zip
+.DS_Store
+Thumbs.db
+node_modules/
+.vercel/

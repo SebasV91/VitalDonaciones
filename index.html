@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VitalDonaciones - Red Comunitaria de Salud Colombia</title>
+  
+  <!-- Iconos FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Cliente Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- Estilos Principales -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Contenedor de Toasts / Notificaciones flotantes -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- Barra de Navegación -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="nav-brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-heart-pulse"></i>
+        </div>
+        <div>
+          <h1>VitalDonaciones</h1>
+          <p>Red Solidaria Comunitaria de Medicamentos - Colombia</p>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <button id="btnOpenSupabaseModal" class="btn-outline" title="Configurar conexión con base de datos">
+          <i class="fa-solid fa-database"></i> <span id="supabaseStatusText">Supabase</span>
+        </button>
+        <button id="btnOpenPublishModal" class="btn-primary">
+          <i class="fa-solid fa-plus-circle"></i> Publicar Medicamento / Solicitud
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Banner Hero con Estadísticas e Impacto -->
+  <section class="hero-banner">
+    <div class="hero-container">
+      <div class="hero-text">
+        <span class="badge-pill">
+          <i class="fa-solid fa-shield-heart"></i> Iniciativa Solidaria Sin Ánimo de Lucro
+        </span>
+        <h2>Solidaridad comunitaria en salud para Colombia</h2>
+        <p>
+          Conectamos a donantes de medicamentos e insumos médicos con familias y pacientes que los necesitan. 
+          100% gratuito, ético y sin intermediarios.
+        </p>
+
+        <!-- Métricas comunitarias en vivo -->
+        <div class="hero-stats">
+          <div class="stat-card">
+            <span class="stat-number" id="statDonationsCount">0</span>
+            <span class="stat-label">Donaciones Activas</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number" id="statRequestsCount">0</span>
+            <span class="stat-label">Solicitudes Urgentes</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number" id="statCitiesCount">0</span>
+            <span class="stat-label">Ciudades Conectadas</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-rules">
+        <div class="rules-title">
+          <i class="fa-solid fa-scale-balanced"></i> Normas Éticas y Sanitarias:
+        </div>
+        <ul>
+          <li><i class="fa-solid fa-ban text-rose"></i> <strong>Prohibida la venta:</strong> Todo es 100% donación gratuita.</li>
+          <li><i class="fa-solid fa-file-prescription text-teal"></i> <strong>Fórmula Médica:</strong> Obligatoria para medicamentos de prescripción.</li>
+          <li><i class="fa-solid fa-triangle-exclamation text-amber"></i> <strong>Vencimiento:</strong> No se aceptan fármacos caducados.</li>
+          <li><i class="fa-brands fa-whatsapp text-emerald"></i> <strong>Contacto Directo:</strong> Acuerdos seguros vía WhatsApp.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pestañas de Navegación por Tipo (Donaciones vs Solicitudes) -->
+  <div class="tabs-wrapper">
+    <div class="tabs-container">
+      <button class="tab-btn active" data-type="all" id="tabAll">
+        <i class="fa-solid fa-layer-group"></i> Todos (<span id="countTabAll">0</span>)
+      </button>
+      <button class="tab-btn" data-type="donacion" id="tabDonations">
+        <i class="fa-solid fa-hand-holding-medical"></i> Ofrezco Donación (<span id="countTabDonations">0</span>)
+      </button>
+      <button class="tab-btn" data-type="solicitud" id="tabRequests">
+        <i class="fa-solid fa-bullhorn"></i> Busco / Solicitud Urgente (<span id="countTabRequests">0</span>)
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel Principal y Filtros -->
+  <main class="main-container">
+    <div class="filters-bar">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="searchInput" placeholder="Buscar medicamento o insumo (ej: Losartán, Insulina, Silla)...">
+        <button id="btnClearSearch" class="btn-clear-search hidden" title="Limpiar búsqueda">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="select-filters">
+        <select id="categoryFilter" aria-label="Filtrar por categoría">
+          <option value="all">Todas las Categorías</option>
+          <option value="Medicamentos">Medicamentos</option>
+          <option value="Insumos Médicos">Insumos Médicos (Sillas, Muletas, etc.)</option>
+          <option value="Cuidado del Paciente">Cuidado del Paciente (Pañales, Gasas, etc.)</option>
+          <option value="Pediatría">Pediatría y Maternidad</option>
+        </select>
+
+        <select id="cityFilter" aria-label="Filtrar por ciudad">
+          <option value="all">Todas las Ciudades</option>
+          <!-- Ciudades de Colombia pobladas dinámicamente -->
+        </select>
+
+        <select id="statusFilter" aria-label="Filtrar por estado">
+          <option value="disponible">Solo Disponibles</option>
+          <option value="all">Todos (Incluye Entregados)</option>
+        </select>
+
+        <button id="btnResetFilters" class="btn-secondary btn-icon" title="Restablecer filtros">
+          <i class="fa-solid fa-rotate-left"></i> Limpiar
+        </button>
+      </div>
+    </div>
+
+    <!-- Indicador de resultados activos -->
+    <div class="results-header">
+      <span id="resultsCount">Cargando publicaciones...</span>
+      <div class="legend-badges">
+        <span class="legend-item"><span class="dot dot-green"></span> Vigente</span>
+        <span class="legend-item"><span class="dot dot-yellow"></span> Próximo a vencer</span>
+        <span class="legend-item"><span class="dot dot-red"></span> Vencido</span>
+      </div>
+    </div>
+
+    <!-- Cuadrícula de Donaciones y Solicitudes -->
+    <div id="donationsGrid" class="donations-grid">
+      <!-- Tarjetas insertadas dinámicamente por app.js -->
+    </div>
+  </main>
+
+  <!-- Modal de Publicación (Donación o Solicitud) -->
+  <div id="publishModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modalFormTitle"><i class="fa-solid fa-plus-circle"></i> Publicar en la Comunidad</h3>
+        <button id="btnClosePublishModal" class="modal-close" aria-label="Cerrar ventana"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="publicationForm" class="modal-form">
+        <!-- Selector Tipo de Publicación -->
+        <div>
+          <label>Tipo de Publicación *</label>
+          <div class="type-toggle-group">
+            <label class="type-radio-label">
+              <input type="radio" name="pubType" value="donacion" checked id="radioDonacion">
+              <span class="type-pill pill-donate">
+                <i class="fa-solid fa-hand-holding-heart"></i> Ofrezco Donación
+              </span>
+            </label>
+            <label class="type-radio-label">
+              <input type="radio" name="pubType" value="solicitud" id="radioSolicitud">
+              <span class="type-pill pill-request">
+                <i class="fa-solid fa-bullhorn"></i> Busco / Necesito Ayuda
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label for="itemTitle">Nombre del Medicamento o Insumo *</label>
+          <input type="text" id="itemTitle" required placeholder="Ej: Losartán 50mg / Insulina Glargina / Silla de Ruedas">
+        </div>
+
+        <div class="form-row">
+          <div>
+            <label for="itemCategory">Categoría *</label>
+            <select id="itemCategory" required>
+              <option value="Medicamentos">Medicamentos</option>
+              <option value="Insumos Médicos">Insumos Médicos</option>
+              <option value="Cuidado del Paciente">Cuidado del Paciente</option>
+              <option value="Pediatría">Pediatría y Maternidad</option>
+            </select>
+          </div>
+          <div>
+            <label for="itemQuantity">Cantidad y Presentación *</label>
+            <input type="text" id="itemQuantity" required placeholder="Ej: 2 Cajas x 30 tabletas">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div id="expiryFieldContainer">
+            <label for="itemExpiry">Fecha de Vencimiento <span id="expiryRequiredTag">(Opcional)</span></label>
+            <input type="date" id="itemExpiry">
+            <span id="expiryHelpText" class="input-helper"></span>
+          </div>
+          <div>
+            <label for="itemCity">Ciudad en Colombia *</label>
+            <input type="text" id="itemCity" list="colombiaCitiesList" required placeholder="Ej: Pereira, Bogotá...">
+          </div>
+        </div>
+
+        <div>
+          <label for="itemPhone">Número de WhatsApp (Contacto directo) *</label>
+          <div class="phone-input-group">
+            <span>+57</span>
+            <input type="tel" id="itemPhone" required placeholder="3001234567" maxlength="10">
+          </div>
+          <span class="input-helper">10 dígitos del celular colombiano para contacto seguro.</span>
+        </div>
+
+        <div>
+          <label for="itemDescription">Descripción y Condiciones de Entrega</label>
+          <textarea id="itemDescription" rows="3" placeholder="Estado del empaque, blíster sellado, cadena de frío, lugar de entrega pública o motivo de urgencia..."></textarea>
+        </div>
+
+        <!-- Alerta de Compromiso Ético -->
+        <div class="alert-box-info">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>Al publicar, certificas que no estás vendiendo ni comercializando este insumo y que se entregará de forma totalmente gratuita.</span>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="btnCancelPublish" class="btn-secondary">Cancelar</button>
+          <button type="submit" id="btnSubmitPublish" class="btn-success">
+            <i class="fa-solid fa-paper-plane"></i> Publicar Ahora
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Ético de Verificación (Fórmula Médica y WhatsApp) -->
+  <div id="requestModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-box modal-sm">
+      <div class="modal-body-center">
+        <div class="alert-icon">
+          <i class="fa-solid fa-file-prescription"></i>
+        </div>
+        <h3 id="modalReqHeaderTitle">Compromiso Comunitario</h3>
+        <p class="modal-subtext">Para contactar al donante de <strong id="reqItemTitle"></strong>:</p>
+      </div>
+
+      <div class="alert-box">
+        <label class="checkbox-label">
+          <input type="checkbox" id="chkPrescription">
+          <span>Tengo <strong>fórmula médica vigente</strong> expedida por un profesional de salud (para medicamentos de prescripción).</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="chkNoCommercial">
+          <span>Me comprometo estrictamente a <strong>NO comercializar ni revender</strong> este producto solidario.</span>
+        </label>
+      </div>
+
+      <p class="security-note">
+        <i class="fa-solid fa-shield-halved"></i> Se abrirá WhatsApp directamente para acordar la entrega segura en un lugar público.
+      </p>
+
+      <div class="modal-footer-flex">
+        <button id="btnCancelRequest" class="btn-secondary">Cancelar</button>
+        <button id="btnConfirmWhatsApp" disabled class="btn-disabled">
+          <i class="fa-brands fa-whatsapp"></i> Continuar a WhatsApp
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Marcar como Entregado / Completado -->
+  <div id="statusModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-box modal-sm">
+      <div class="modal-body-center">
+        <div class="alert-icon icon-success">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <h3>¿Marcar como Entregado?</h3>
+        <p class="modal-subtext" id="statusModalText">
+          ¿Deseas marcar <strong id="statusItemTitle"></strong> como finalizado/entregado? Ya no aparecerá como disponible.
+        </p>
+      </div>
+
+      <div class="modal-footer-flex">
+        <button id="btnCancelStatusChange" class="btn-secondary">Cancelar</button>
+        <button id="btnConfirmStatusChange" class="btn-primary">
+          <i class="fa-solid fa-check"></i> Sí, marcar completado
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Configuración de Supabase con Asistente SQL -->
+  <div id="supabaseModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-database"></i> Conexión con Supabase</h3>
+        <button id="btnCloseSupabaseModal" class="modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="supabase-status-banner" id="supabaseStatusBanner">
+        <i class="fa-solid fa-circle-info"></i>
+        <span id="supabaseStatusMessage">Verificando estado de la conexión...</span>
+      </div>
+
+      <div class="modal-form">
+        <div>
+          <label for="supabaseUrlInput">SUPABASE PROJECT URL</label>
+          <input type="text" id="supabaseUrlInput" placeholder="https://tu-proyecto.supabase.co">
+        </div>
+        <div>
+          <label for="supabaseKeyInput">SUPABASE ANON / PUBLIC KEY</label>
+          <input type="text" id="supabaseKeyInput" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+        </div>
+
+        <!-- Script SQL desplegable -->
+        <div class="sql-helper-box">
+          <div class="sql-header">
+            <span><i class="fa-solid fa-code"></i> Script SQL para la tabla (Supabase):</span>
+            <button type="button" id="btnCopySqlSchema" class="btn-copy-sql">
+              <i class="fa-regular fa-copy"></i> Copiar SQL
+            </button>
+          </div>
+          <pre id="sqlSchemaCode" class="sql-code-block"></pre>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" id="btnDisconnectSupabase" class="btn-secondary">Usar Solo LocalStorage</button>
+        <button type="button" id="btnSaveSupabaseConfig" class="btn-success">Guardar y Conectar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de ciudades de Colombia para autocompletado -->
+  <datalist id="colombiaCitiesList">
+    <option value="Bogotá">
+    <option value="Medellín">
+    <option value="Cali">
+    <option value="Barranquilla">
+    <option value="Cartagena">
+    <option value="Bucaramanga">
+    <option value="Pereira">
+    <option value="Manizales">
+    <option value="Armenia">
+    <option value="Cúcuta">
+    <option value="Ibagué">
+    <option value="Santa Marta">
+    <option value="Pasto">
+    <option value="Neiva">
+    <option value="Villavicencio">
+    <option value="Valledupar">
+    <option value="Montería">
+    <option value="Sincelejo">
+    <option value="Popayán">
+    <option value="Tunja">
+    <option value="Riohacha">
+    <option value="Florencia">
+    <option value="Quibdó">
+    <option value="Yopal">
+    <option value="San Andrés">
+    <option value="Palmira">
+    <option value="Buenaventura">
+    <option value="Soacha">
+    <option value="Bello">
+    <option value="Itagüí">
+    <option value="Envigado">
+    <option value="Dosquebradas">
+  </datalist>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <p><strong>VitalDonaciones Colombia</strong> &copy; 2026 &bull; Red Ciudadana Solidaria de Salud.</p>
+      <p class="footer-disclaimer">
+        Esta plataforma es un canal sin ánimo de lucro para facilitar donaciones comunitarias directas. 
+        No reemplaza la atención médica ni prescribe tratamientos. Ante cualquier duda, consulte a su médico tratante o al INVIMA.
+      </p>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="supabaseClient.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
